@@ -1,0 +1,45 @@
+/* container for fields and shapes */
+#tetris div.field-container {
+	position: relative;
+}
+/* field or shape */
+#tetris div.field-container > div {
+	position: absolute;
+}
+/* row */
+#tetris div.field-container > div > div {
+	position: relative;
+}
+
+/* block */
+#tetris div.field-container > div > div > div {
+	position: absolute;
+}
+
+.cyan {
+	background-color: cyan;
+}
+
+.blue {
+	background-color: blue;
+}
+
+.orange {
+	background-color: orange;
+}
+
+.magenta {
+	background-color: magenta;
+}
+
+.green {
+	background-color: green;
+}
+
+.red {
+	background-color: red;
+}
+
+.yellow {
+	background-color: yellow;
+}
