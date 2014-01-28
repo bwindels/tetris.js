@@ -10,7 +10,7 @@ var container = doc.getElementById('tetris').querySelector('.field-container');
 
 var shapes = require('./core/shapes').createShapes();
 
-var field = new TetrisField(10, 20),
+var field = new TetrisField(20, 30),
 	screen = new DOMTetrisField(container, 20, 1, doc),
 	input = new KeyboardInput(doc),
 	game = new TetrisGame(screen, input, field, shapes);

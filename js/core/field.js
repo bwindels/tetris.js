@@ -24,19 +24,32 @@ TetrisField.prototype = {
 		this.blocks.splice.apply(this.blocks, args);
 	},
 	iterateShapeBlocks: function (offsetX, offsetY, shape, it) {
-		var localX, localY;
+		var localX, localY, globalX, globalY, validPosition;
 		for (localY = 0 ; localY < shape.size; ++localY) {
 			for (localX = 0 ; localX < shape.size; ++localX) {
-				if (it(localX, localY, localX + offsetX, localY + offsetY)) {
+				
+				globalX = localX + offsetX;
+				globalY = localY + offsetY;
+				validPosition = globalX >= 0 && globalX < this.width && globalY >= 0 && globalY < this.height;
+				
+				if (validPosition && it(localX, localY, globalX, globalY)) {
 					return true;
 				}
 			}
 		}
 		return false;
 	},
-	isShapeSet: function (offsetX, offsetY, shape) {
+	isShapeSpaceAvailable: function (offsetX, offsetY, shape) {
 		var self = this;
-		return this.iterateShapeBlocks(offsetX, offsetY, shape, function (x, y, globalX, globalY) {
+
+		if ((offsetX + shape.nonBlankArea.left) < 0 || offsetX > (this.width - shape.size + shape.nonBlankArea.right)) {
+            return false;
+        }
+        if ((offsetY + shape.nonBlankArea.top) < 0 || offsetY > (this.height - shape.size + shape.nonBlankArea.bottom)) {
+            return false;
+        }
+
+		return !this.iterateShapeBlocks(offsetX, offsetY, shape, function (x, y, globalX, globalY) {
 			return shape.isSet(x, y) && !!self.blocks[globalY][globalX];
 		});
 	},

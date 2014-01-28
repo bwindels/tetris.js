@@ -84,13 +84,7 @@ TetrisGame.prototype = {
         x += this.shapeOffset.x;
         y += this.shapeOffset.y;
         //check fields bounds, should maybe go in TetrisField itself? Probably
-        if (x < 0 || x >= (this.field.width - shape.size)) {
-            return false;
-        }
-        if (y < 0 || y >= (this.field.height - shape.size)) {
-            return false;
-        }
-        return !this.field.isShapeSet(x, y, shape);
+        return this.field.isShapeSpaceAvailable(x, y, shape);
     },
     selectNewShape: function () {
         var shapeIndex = Math.floor(Math.random() * this.shapes.length);

@@ -5,6 +5,7 @@
 /* field or shape */
 #tetris div.field-container > div {
 	position: absolute;
+	background-color: grey;
 }
 /* row */
 #tetris div.field-container > div > div {
