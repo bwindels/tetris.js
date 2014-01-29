@@ -12,7 +12,6 @@ function TetrisShape(size, color, blocks) {
         });
     }
     this.nonBlankArea = this.calculateNonBlankArea();
-    console.log(this.nonBlankArea);
 }
 
 TetrisShape.prototype = {
@@ -35,19 +34,19 @@ TetrisShape.prototype = {
     calculateNonBlankArea: function () {
         var left = 0,
             top = 0, 
-            right = this.size - 1, 
-            bottom = this.size - 1;
+            right = this.size, 
+            bottom = this.size;
 
         while (!this.columnHasBlocks(left)) {
             ++left;
         }
-        while (!this.columnHasBlocks(right)) {
+        while (!this.columnHasBlocks(right - 1)) {
             --right;
         }
         while (!this.rowHasBlocks(top)) {
             ++top;
         }
-        while (!this.rowHasBlocks(bottom)) {
+        while (!this.rowHasBlocks(bottom - 1)) {
             --bottom;
         }
 

@@ -42,10 +42,10 @@ TetrisField.prototype = {
 	isShapeSpaceAvailable: function (offsetX, offsetY, shape) {
 		var self = this;
 
-		if ((offsetX + shape.nonBlankArea.left) < 0 || offsetX > (this.width - shape.size + shape.nonBlankArea.right)) {
+		if ((offsetX + shape.nonBlankArea.left) < 0 || offsetX > (this.width - shape.nonBlankArea.right)) {
             return false;
         }
-        if ((offsetY + shape.nonBlankArea.top) < 0 || offsetY > (this.height - shape.size + shape.nonBlankArea.bottom)) {
+        if ((offsetY + shape.nonBlankArea.top) < 0 || offsetY > (this.height - shape.nonBlankArea.bottom)) {
             return false;
         }
 
