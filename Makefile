@@ -6,3 +6,9 @@ target/tetris.js:
 
 clean:
 	@rm -f target/tetris.js
+
+always_run:
+	@#empty target that is never satisfied
+
+test: always_run
+	@nodeunit test/test-*.js
