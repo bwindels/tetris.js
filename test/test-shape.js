@@ -18,7 +18,14 @@ module.exports = {
         test.strictEqual(this.shape.nonBlankArea.bottom, 3);
         test.strictEqual(this.shape.nonBlankArea.left, 1);
         test.strictEqual(this.shape.nonBlankArea.right, 3);
-        
+
+        var s2 = new TetrisShape(2, 'red', [
+            [1, 0],
+            [0, 1]
+        ]);
+        test.strictEqual(s2.nonBlankArea.right, 2);
+        test.strictEqual(s2.nonBlankArea.bottom, 2);
+
         test.done();
     },
 

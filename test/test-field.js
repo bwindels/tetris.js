@@ -19,9 +19,11 @@ module.exports = {
         
         test.strictEqual(f.isShapeSpaceAvailable(1, 0, s), true);
         test.strictEqual(f.isShapeSpaceAvailable(2, 0, s), false);
+        test.strictEqual(f.isShapeSpaceAvailable(3, 0, s), false);
         
         test.strictEqual(f.isShapeSpaceAvailable(0, 3, s), true);
         test.strictEqual(f.isShapeSpaceAvailable(0, 4, s), false);
+        test.strictEqual(f.isShapeSpaceAvailable(0, 5, s), false);
 
         test.done();
     }
