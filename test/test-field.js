@@ -26,5 +26,22 @@ module.exports = {
         test.strictEqual(f.isShapeSpaceAvailable(0, 5, s), false);
 
         test.done();
+    },
+    'test isLineFull': function (test) {
+        
+        var s = new TetrisShape(3, 'red', [
+            [0, 1, 0],
+            [0, 1, 0],
+            [1, 1, 1]
+        ]);
+        var f = new TetrisField(3, 4);
+
+        test.strictEqual(f.isLineFull(2), false);
+        test.strictEqual(f.isLineFull(3), false);
+        f.setShape(0, 1, s);
+        test.strictEqual(f.isLineFull(2), false);
+        test.strictEqual(f.isLineFull(3), true);
+
+        test.done();
     }
 };
