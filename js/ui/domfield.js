@@ -7,35 +7,45 @@ function DOMTetrisShape(el, size, padding, doc) {
     this.size = size;
     this.padding = padding;
     this.doc = doc;
+    this.width = null;
 }
 
 DOMTetrisShape.prototype = {
     setSize: function (width, height) {
-        var rowIndex,
-            columnIndex,
-            blockElement,
-            rowContainer;
+        var rowIndex;
 
+        this.width = width;
         this.fieldElement.innerHTML = '';
 
         for (rowIndex = 0; rowIndex < height ; ++rowIndex) {
-
-            rowContainer = this.doc.createElement('div');
-            rowContainer.style.height = (this.size + this.padding) + 'px';
-
-
-            for (columnIndex = 0; columnIndex < width ; ++columnIndex) {
-
-                blockElement = this.createBlock(columnIndex);
-                rowContainer.appendChild(blockElement);
-
-            }
-            
-            this.fieldElement.appendChild(rowContainer);
+            this.fieldElement.appendChild(this.createRowNode());
         }
 
-        this.fieldElement.style.width = ((this.size * width) + ((width - 1) * this.padding)) + 'px';
-        this.fieldElement.style.height = ((this.size * height) + ((height - 1) * this.padding)) + 'px';
+        this.fieldElement.style.width = this.getPixelWidth(width) + 'px';
+        this.fieldElement.style.height = this.getPixelHeight(height) + 'px';
+    },
+    createRowNode: function () {
+        var columnIndex,
+            blockElement,
+            rowContainer;
+
+        rowContainer = this.doc.createElement('div');
+        rowContainer.style.height = (this.size + this.padding) + 'px';
+
+        for (columnIndex = 0; columnIndex < this.width ; ++columnIndex) {
+
+            blockElement = this.createBlock(columnIndex);
+            rowContainer.appendChild(blockElement);
+
+        }
+
+        return rowContainer;
+    },
+    getPixelWidth: function (width) {
+        return ((this.size * width) + ((width - 1) * this.padding));
+    },
+    getPixelHeight: function (height) {
+        return ((this.size * height) + ((height - 1) * this.padding));
     },
     createBlock: function (x) {
         var block = this.doc.createElement('div');
@@ -76,28 +86,16 @@ function DOMTetrisField(container, size, padding, doc) {
 }
 
 DOMTetrisField.prototype = _.extend(Object.create(DOMTetrisShape.prototype), {
-    dropLines: function (amount) {
-        var rowIndex,
-            columnIndex,
-            rowContainer,
-            firstLine;
+    dropLine: function (lineIndex) {
+        var row = this.fieldElement.children[lineIndex];
 
-        while (amount > 0) {
-            this.fieldElement.removeChild(this.fieldElement.children.lastChild);
-            ++amount;
-        }
-
-        firstLine =  this.fieldElement.children[0];
-        for (rowIndex = 0; rowIndex < amount ; ++rowIndex) {
-
-            rowContainer = this.doc.createElement('div');
-            if (firstLine) {
-                this.fieldElement.insertBefore(rowContainer, firstLine);
-            } else {
-                this.fieldElement.appendChild(rowContainer);
-            }
-
-        }
+        this.fieldElement.removeChild(row);
+        this.fieldElement.insertBefore(this.createRowNode(), this.fieldElement.firstChild);
+    },
+    setSize: function (width, height) {
+        DOMTetrisShape.prototype.setSize.call(this, width, height);
+        this.container.style.width = this.getPixelWidth(width) + 'px';
+        this.container.style.height = this.getPixelHeight(height) + 'px';
     },
     convertShape: function (shape) {
         var rowIndex, columnIndex;

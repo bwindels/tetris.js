@@ -2,69 +2,84 @@
 /*jshint indent:4 undef:true node:true strict:false */
 
 function TetrisField(width, height) {
-	this.width = width;
-	this.height = height;
-	this.blocks = this.createEmptyBlocks(height);
+    this.width = width;
+    this.height = height;
+    this.blocks = this.createEmptyBlocks(height);
 }
 
 TetrisField.prototype = {
-	createEmptyBlocks: function (rows) {
-		var x, y, blocks = [], row;
-		for (y = 0 ; y < rows; ++y) {
-			row = [];
-			for (x = 0 ; x < this.width; ++x) {
-				row.push(false);
-			}
-			blocks.push(row);
-		}
-		return blocks;
-	},
-	dropLines: function (amount) {
-		this.blocks.splice(this.blocks.length, amount);
-		var args = [0, 0].concat(this.createEmptyBlocks(amount));
-		this.blocks.splice.apply(this.blocks, args);
-	},
-	iterateShapeBlocks: function (offsetX, offsetY, shape, it) {
-		var localX, localY, globalX, globalY, validPosition;
-		for (localY = 0 ; localY < shape.size; ++localY) {
-			for (localX = 0 ; localX < shape.size; ++localX) {
-				
-				globalX = localX + offsetX;
-				globalY = localY + offsetY;
-				validPosition = globalX >= 0 && globalX < this.width && globalY >= 0 && globalY < this.height;
-				
-				if (validPosition && it(localX, localY, globalX, globalY)) {
-					return true;
-				}
-			}
-		}
-		return false;
-	},
-	isShapeSpaceAvailable: function (offsetX, offsetY, shape) {
-		var self = this;
+    createEmptyBlocks: function (rows) {
+        var x, y, blocks = [], row;
+        for (y = 0 ; y < rows; ++y) {
+            row = [];
+            for (x = 0 ; x < this.width; ++x) {
+                row.push(false);
+            }
+            blocks.push(row);
+        }
+        return blocks;
+    },
+    dropLine: function (lineIndex) {
+        //remove line
+        this.blocks.splice(lineIndex, 1);
+        //and add empty line on top
+        this.blocks.splice(0, 0, this.createEmptyBlocks(1)[0]);
+    },
+    iterateShapeBlocks: function (offsetX, offsetY, shape, it) {
+        var localX, localY, globalX, globalY, validPosition;
+        for (localY = 0 ; localY < shape.size; ++localY) {
+            for (localX = 0 ; localX < shape.size; ++localX) {
+                
+                globalX = localX + offsetX;
+                globalY = localY + offsetY;
+                validPosition = globalX >= 0 && globalX < this.width && globalY >= 0 && globalY < this.height;
+                
+                if (validPosition && it(localX, localY, globalX, globalY)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    },
+    isShapeSpaceAvailable: function (offsetX, offsetY, shape) {
+        var self = this;
 
-		if ((offsetX + shape.nonBlankArea.left) < 0 || offsetX > (this.width - shape.nonBlankArea.right)) {
+        if ((offsetX + shape.nonBlankArea.left) < 0 || offsetX > (this.width - shape.nonBlankArea.right)) {
             return false;
         }
         if ((offsetY + shape.nonBlankArea.top) < 0 || offsetY > (this.height - shape.nonBlankArea.bottom)) {
             return false;
         }
 
-		return !this.iterateShapeBlocks(offsetX, offsetY, shape, function (x, y, globalX, globalY) {
-			return shape.isSet(x, y) && !!self.blocks[globalY][globalX];
-		});
-	},
-	setShape: function (offsetX, offsetY, shape) {
-		var self = this;
-		this.iterateShapeBlocks(offsetX, offsetY, shape, function (x, y, globalX, globalY) {
-			if (shape.isSet(x, y)) {
-				self.blocks[globalY][globalX] = true;
-			}
-		});
-	},
-	isLineFull: function (y) {
-		return this.blocks[y].every(function (v) { return v; });
-	}
+        return !this.iterateShapeBlocks(offsetX, offsetY, shape, function (x, y, globalX, globalY) {
+            return shape.isSet(x, y) && !!self.blocks[globalY][globalX];
+        });
+    },
+    setShape: function (offsetX, offsetY, shape) {
+        var self = this;
+        this.iterateShapeBlocks(offsetX, offsetY, shape, function (x, y, globalX, globalY) {
+            if (shape.isSet(x, y)) {
+                self.blocks[globalY][globalX] = true;
+            }
+        });
+    },
+    isLineFull: function (y) {
+        return this.blocks[y].every(function (v) { return v; });
+    },
+    dropFullLines: function (callback) {
+        var lineIndex = this.height - 1;
+        while (lineIndex > 0) {
+            if (this.isLineFull(lineIndex)) {
+                this.dropLine(lineIndex);
+                callback(lineIndex);
+                //don't decrease lineIndex here so we
+                //can retry lineIndex since it now points
+                //to the line that used to be above
+            } else {
+                --lineIndex;
+            }
+        }
+    }
 };
 
 module.exports = TetrisField;
@@ -81,6 +96,7 @@ function TetrisGame(screen, input, field, shapes) {
         y: 0
     };
     this.lowerBlockTime = 500;
+    this.stepHandle = null;
 
     input.on('rotateBlock', this.rotateBlock.bind(this));
     input.on('moveBlockLeft', this.moveBlockLeft.bind(this));
@@ -98,7 +114,7 @@ TetrisGame.prototype = {
     },
     step: function () {
         if (this.lowerBlock()) {
-            window.setTimeout(this.step.bind(this), this.lowerBlockTime);
+            this.stepHandle = window.setTimeout(this.step.bind(this), this.lowerBlockTime);
         } else {
             this.selectNewShape();
         }
@@ -121,10 +137,19 @@ TetrisGame.prototype = {
         this.screen.fillShape(this.shapeOffset.x, this.shapeOffset.y, this.shape);
     },
     checkFullLines: function () {
-
+        this.field.dropFullLines(this.screen.dropLine.bind(this.screen));
     },
     dropBlock: function () {
-        while (this.lowerBlock()) {}
+        while (this.lowerBlock()) {
+
+        }
+
+        if (this.stepHandle) {
+            clearTimeout(this.stepHandle);
+            this.stepHandle = null;
+        }
+
+        this.selectNewShape();
     },
     moveBlockLeft: function () {
         if (this.checkPosition(-1, 0)) {
@@ -171,7 +196,7 @@ TetrisGame.prototype = {
             return this.gameOver();
         }
 
-        window.setTimeout(this.step.bind(this), this.lowerBlockTime);
+        this.stepHandle = window.setTimeout(this.step.bind(this), this.lowerBlockTime);
     }
 };
 
@@ -345,7 +370,7 @@ var container = doc.getElementById('tetris').querySelector('.field-container');
 
 var shapes = require('./core/shapes').createShapes();
 
-var field = new TetrisField(20, 30),
+var field = new TetrisField(10, 20),
 	screen = new DOMTetrisField(container, 20, 1, doc),
 	input = new KeyboardInput(doc),
 	game = new TetrisGame(screen, input, field, shapes);
@@ -363,35 +388,45 @@ function DOMTetrisShape(el, size, padding, doc) {
     this.size = size;
     this.padding = padding;
     this.doc = doc;
+    this.width = null;
 }
 
 DOMTetrisShape.prototype = {
     setSize: function (width, height) {
-        var rowIndex,
-            columnIndex,
-            blockElement,
-            rowContainer;
+        var rowIndex;
 
+        this.width = width;
         this.fieldElement.innerHTML = '';
 
         for (rowIndex = 0; rowIndex < height ; ++rowIndex) {
-
-            rowContainer = this.doc.createElement('div');
-            rowContainer.style.height = (this.size + this.padding) + 'px';
-
-
-            for (columnIndex = 0; columnIndex < width ; ++columnIndex) {
-
-                blockElement = this.createBlock(columnIndex);
-                rowContainer.appendChild(blockElement);
-
-            }
-            
-            this.fieldElement.appendChild(rowContainer);
+            this.fieldElement.appendChild(this.createRowNode());
         }
 
-        this.fieldElement.style.width = ((this.size * width) + ((width - 1) * this.padding)) + 'px';
-        this.fieldElement.style.height = ((this.size * height) + ((height - 1) * this.padding)) + 'px';
+        this.fieldElement.style.width = this.getPixelWidth(width) + 'px';
+        this.fieldElement.style.height = this.getPixelHeight(height) + 'px';
+    },
+    createRowNode: function () {
+        var columnIndex,
+            blockElement,
+            rowContainer;
+
+        rowContainer = this.doc.createElement('div');
+        rowContainer.style.height = (this.size + this.padding) + 'px';
+
+        for (columnIndex = 0; columnIndex < this.width ; ++columnIndex) {
+
+            blockElement = this.createBlock(columnIndex);
+            rowContainer.appendChild(blockElement);
+
+        }
+
+        return rowContainer;
+    },
+    getPixelWidth: function (width) {
+        return ((this.size * width) + ((width - 1) * this.padding));
+    },
+    getPixelHeight: function (height) {
+        return ((this.size * height) + ((height - 1) * this.padding));
     },
     createBlock: function (x) {
         var block = this.doc.createElement('div');
@@ -432,28 +467,16 @@ function DOMTetrisField(container, size, padding, doc) {
 }
 
 DOMTetrisField.prototype = _.extend(Object.create(DOMTetrisShape.prototype), {
-    dropLines: function (amount) {
-        var rowIndex,
-            columnIndex,
-            rowContainer,
-            firstLine;
+    dropLine: function (lineIndex) {
+        var row = this.fieldElement.children[lineIndex];
 
-        while (amount > 0) {
-            this.fieldElement.removeChild(this.fieldElement.children.lastChild);
-            ++amount;
-        }
-
-        firstLine =  this.fieldElement.children[0];
-        for (rowIndex = 0; rowIndex < amount ; ++rowIndex) {
-
-            rowContainer = this.doc.createElement('div');
-            if (firstLine) {
-                this.fieldElement.insertBefore(rowContainer, firstLine);
-            } else {
-                this.fieldElement.appendChild(rowContainer);
-            }
-
-        }
+        this.fieldElement.removeChild(row);
+        this.fieldElement.insertBefore(this.createRowNode(), this.fieldElement.firstChild);
+    },
+    setSize: function (width, height) {
+        DOMTetrisShape.prototype.setSize.call(this, width, height);
+        this.container.style.width = this.getPixelWidth(width) + 'px';
+        this.container.style.height = this.getPixelHeight(height) + 'px';
     },
     convertShape: function (shape) {
         var rowIndex, columnIndex;

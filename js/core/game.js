@@ -10,6 +10,7 @@ function TetrisGame(screen, input, field, shapes) {
         y: 0
     };
     this.lowerBlockTime = 500;
+    this.stepHandle = null;
 
     input.on('rotateBlock', this.rotateBlock.bind(this));
     input.on('moveBlockLeft', this.moveBlockLeft.bind(this));
@@ -27,7 +28,7 @@ TetrisGame.prototype = {
     },
     step: function () {
         if (this.lowerBlock()) {
-            window.setTimeout(this.step.bind(this), this.lowerBlockTime);
+            this.stepHandle = window.setTimeout(this.step.bind(this), this.lowerBlockTime);
         } else {
             this.selectNewShape();
         }
@@ -50,10 +51,19 @@ TetrisGame.prototype = {
         this.screen.fillShape(this.shapeOffset.x, this.shapeOffset.y, this.shape);
     },
     checkFullLines: function () {
-
+        this.field.dropFullLines(this.screen.dropLine.bind(this.screen));
     },
     dropBlock: function () {
-        while (this.lowerBlock()) {}
+        while (this.lowerBlock()) {
+
+        }
+
+        if (this.stepHandle) {
+            clearTimeout(this.stepHandle);
+            this.stepHandle = null;
+        }
+
+        this.selectNewShape();
     },
     moveBlockLeft: function () {
         if (this.checkPosition(-1, 0)) {
@@ -100,7 +110,7 @@ TetrisGame.prototype = {
             return this.gameOver();
         }
 
-        window.setTimeout(this.step.bind(this), this.lowerBlockTime);
+        this.stepHandle = window.setTimeout(this.step.bind(this), this.lowerBlockTime);
     }
 };
 

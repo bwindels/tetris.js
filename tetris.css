@@ -1,11 +1,12 @@
 /* container for fields and shapes */
 #tetris div.field-container {
 	position: relative;
+	overflow: hidden;
+	border: 1px solid black;
 }
 /* field or shape */
 #tetris div.field-container > div {
 	position: absolute;
-	background-color: grey;
 }
 /* row */
 #tetris div.field-container > div > div {
