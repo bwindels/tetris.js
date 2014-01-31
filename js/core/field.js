@@ -78,6 +78,9 @@ TetrisField.prototype = {
                 --lineIndex;
             }
         }
+    },
+    reset: function () {
+        this.blocks = this.createEmptyBlocks(this.height);
     }
 };
 

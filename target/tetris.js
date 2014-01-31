@@ -79,6 +79,9 @@ TetrisField.prototype = {
                 --lineIndex;
             }
         }
+    },
+    reset: function () {
+        this.blocks = this.createEmptyBlocks(this.height);
     }
 };
 
@@ -171,7 +174,9 @@ TetrisGame.prototype = {
         }
     },
     gameOver: function () {
-        alert('game over');
+        this.field.reset();
+        this.screen.reset();
+        this.selectNewShape();
     },
     checkPosition: function (x, y, shape) {
         if (!shape) {
@@ -389,6 +394,7 @@ function DOMTetrisShape(el, size, padding, doc) {
     this.padding = padding;
     this.doc = doc;
     this.width = null;
+    this.height = null;
 }
 
 DOMTetrisShape.prototype = {
@@ -396,6 +402,7 @@ DOMTetrisShape.prototype = {
         var rowIndex;
 
         this.width = width;
+        this.height = height;
         this.fieldElement.innerHTML = '';
 
         for (rowIndex = 0; rowIndex < height ; ++rowIndex) {
@@ -404,6 +411,9 @@ DOMTetrisShape.prototype = {
 
         this.fieldElement.style.width = this.getPixelWidth(width) + 'px';
         this.fieldElement.style.height = this.getPixelHeight(height) + 'px';
+    },
+    reset: function () {
+        this.setSize(this.width, this.height);
     },
     createRowNode: function () {
         var columnIndex,

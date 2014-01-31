@@ -85,7 +85,9 @@ TetrisGame.prototype = {
         }
     },
     gameOver: function () {
-        alert('game over');
+        this.field.reset();
+        this.screen.reset();
+        this.selectNewShape();
     },
     checkPosition: function (x, y, shape) {
         if (!shape) {
