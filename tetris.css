@@ -16,6 +16,8 @@
 /* block */
 #tetris div.field-container > div > div > div {
 	position: absolute;
+	border-right: 1px solid #f5f5f5;
+	border-bottom: 1px solid #f5f5f5;
 }
 
 .cyan {
