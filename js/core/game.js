@@ -1,6 +1,8 @@
 /*jshint indent:4 undef:true node:true strict:false */
 /*global window alert */
 
+var when = require('when');
+
 function TetrisGame(screen, input, field, shapes) {
     this.screen = screen;
     this.field = field;
@@ -51,7 +53,14 @@ TetrisGame.prototype = {
         this.screen.fillShape(this.shapeOffset.x, this.shapeOffset.y, this.shape);
     },
     checkFullLines: function () {
-        this.field.dropFullLines(this.screen.dropLine.bind(this.screen));
+        var self = this,
+            p = when.resolve(true);
+
+        self.field.dropFullLines(function (lineIndex) {
+            p = p.then(function () {
+                return self.screen.dropLine(lineIndex);
+            });            
+        });
     },
     dropBlock: function () {
         while (this.lowerBlock()) {

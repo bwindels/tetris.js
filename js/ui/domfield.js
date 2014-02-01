@@ -96,6 +96,7 @@ function DOMTetrisField(container, size, padding, doc) {
 DOMTetrisField.prototype = _.extend(Object.create(DOMTetrisShape.prototype), {
     dropLine: function (lineIndex) {
         var self = this,
+            d = when.defer(),
             lineToRemove = self.fieldElement.children[lineIndex],
             lineToAdd = self.createRowNode();
 
@@ -104,16 +105,18 @@ DOMTetrisField.prototype = _.extend(Object.create(DOMTetrisShape.prototype), {
         self.fieldElement.insertBefore(lineToAdd, self.fieldElement.firstChild);
 
         setTimeout(function () {
-            var removeAnimation = transitionTo(lineToRemove, {height: '0'}),
-                addAnimation = transitionTo(lineToAdd, {height: self.size + 'px'});
-
+            var removeAnimation = transitionTo(lineToRemove, {height: '0'});
+            var addAnimation = transitionTo(lineToAdd, {height: self.size + 'px'});
+            
             when.join(removeAnimation, addAnimation).then(function () {
                 self.fieldElement.removeChild(lineToRemove);
                 lineToAdd.style.borderBottom = '';
+                d.resolve(true);
             });
-            
+
         }, 0);
 
+        return d.promise;
     },
     setSize: function (width, height) {
         DOMTetrisShape.prototype.setSize.call(this, width, height);

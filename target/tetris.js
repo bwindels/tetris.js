@@ -90,6 +90,8 @@ module.exports = TetrisField;
 /*jshint indent:4 undef:true node:true strict:false */
 /*global window alert */
 
+var when = require('when');
+
 function TetrisGame(screen, input, field, shapes) {
     this.screen = screen;
     this.field = field;
@@ -140,7 +142,14 @@ TetrisGame.prototype = {
         this.screen.fillShape(this.shapeOffset.x, this.shapeOffset.y, this.shape);
     },
     checkFullLines: function () {
-        this.field.dropFullLines(this.screen.dropLine.bind(this.screen));
+        var self = this,
+            p = when.resolve(true);
+
+        self.field.dropFullLines(function (lineIndex) {
+            p = p.then(function () {
+                return self.screen.dropLine(lineIndex);
+            });            
+        });
     },
     dropBlock: function () {
         while (this.lowerBlock()) {
@@ -206,7 +215,7 @@ TetrisGame.prototype = {
 };
 
 module.exports = TetrisGame;
-},{}],3:[function(require,module,exports){
+},{"when":10}],3:[function(require,module,exports){
 /*jshint indent:4 undef:true node:true strict:false */
 
 function TetrisShape(size, color, blocks) {
@@ -482,6 +491,7 @@ function DOMTetrisField(container, size, padding, doc) {
 DOMTetrisField.prototype = _.extend(Object.create(DOMTetrisShape.prototype), {
     dropLine: function (lineIndex) {
         var self = this,
+            d = when.defer(),
             lineToRemove = self.fieldElement.children[lineIndex],
             lineToAdd = self.createRowNode();
 
@@ -490,14 +500,18 @@ DOMTetrisField.prototype = _.extend(Object.create(DOMTetrisShape.prototype), {
         self.fieldElement.insertBefore(lineToAdd, self.fieldElement.firstChild);
 
         setTimeout(function () {
-            var removeAnimation = transitionTo(lineToRemove, {height: '0'}),
-                addAnimation = transitionTo(lineToAdd, {height: self.size + 'px'});
+            var removeAnimation = transitionTo(lineToRemove, {height: '0'});
+            var addAnimation = transitionTo(lineToAdd, {height: self.size + 'px'});
+            
             when.join(removeAnimation, addAnimation).then(function () {
                 self.fieldElement.removeChild(lineToRemove);
                 lineToAdd.style.borderBottom = '';
+                d.resolve(true);
             });
+
         }, 0);
 
+        return d.promise;
     },
     setSize: function (width, height) {
         DOMTetrisShape.prototype.setSize.call(this, width, height);
