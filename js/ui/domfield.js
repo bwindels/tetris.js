@@ -1,6 +1,8 @@
 /*jshint indent:4 undef:true node:true strict:false */
 
 var _ = require('underscore');
+var when = require('when');
+var transitionTo = require('./transition').transitionTo;
 
 function DOMTetrisShape(el, size, padding, doc) {
     this.fieldElement = el;
@@ -35,7 +37,7 @@ DOMTetrisShape.prototype = {
             rowContainer;
 
         rowContainer = this.doc.createElement('div');
-        rowContainer.style.height = (this.size + this.padding) + 'px';
+        rowContainer.style.height = (this.size) + 'px';
 
         for (columnIndex = 0; columnIndex < this.width ; ++columnIndex) {
 
@@ -85,6 +87,7 @@ DOMTetrisShape.prototype = {
 
 function DOMTetrisField(container, size, padding, doc) {
     var field = doc.createElement('div');
+    field.className = 'tetris-field';
     container.appendChild(field);
     DOMTetrisShape.call(this, field, size, padding, doc);
     this.container = container;
@@ -92,10 +95,25 @@ function DOMTetrisField(container, size, padding, doc) {
 
 DOMTetrisField.prototype = _.extend(Object.create(DOMTetrisShape.prototype), {
     dropLine: function (lineIndex) {
-        var row = this.fieldElement.children[lineIndex];
+        var self = this,
+            lineToRemove = self.fieldElement.children[lineIndex],
+            lineToAdd = self.createRowNode();
 
-        this.fieldElement.removeChild(row);
-        this.fieldElement.insertBefore(this.createRowNode(), this.fieldElement.firstChild);
+        lineToAdd.style.height = '0';
+        lineToAdd.style.borderBottom = 'none';
+        self.fieldElement.insertBefore(lineToAdd, self.fieldElement.firstChild);
+
+        setTimeout(function () {
+            var removeAnimation = transitionTo(lineToRemove, {height: '0'}),
+                addAnimation = transitionTo(lineToAdd, {height: self.size + 'px'});
+
+            when.join(removeAnimation, addAnimation).then(function () {
+                self.fieldElement.removeChild(lineToRemove);
+                lineToAdd.style.borderBottom = '';
+            });
+            
+        }, 0);
+
     },
     setSize: function (width, height) {
         DOMTetrisShape.prototype.setSize.call(this, width, height);
@@ -114,6 +132,7 @@ DOMTetrisField.prototype = _.extend(Object.create(DOMTetrisShape.prototype), {
 
         domShape.setSize(shape.size, shape.size);
         domShape.fillShape(0, 0, shape);
+        domShape.fieldElement.className = 'shape';
 
         return domShape;
     },

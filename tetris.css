@@ -16,8 +16,26 @@
 /* block */
 #tetris div.field-container > div > div > div {
 	position: absolute;
+}
+
+#tetris .shape > div > div {
+	margin: 0 1px 0 0;
+}
+#tetris .shape > div {
+	margin: 0 0 1px 0;
+}
+
+#tetris .tetris-field > div > div {
 	border-right: 1px solid #f5f5f5;
+}
+#tetris .tetris-field > div {
+	overflow: hidden;
 	border-bottom: 1px solid #f5f5f5;
+	transition: height 0.5s;
+}
+
+#tetris .shape {
+	transition: top 0.1s;
 }
 
 .cyan {

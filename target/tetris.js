@@ -387,6 +387,8 @@ game.run();
 /*jshint indent:4 undef:true node:true strict:false */
 
 var _ = require('underscore');
+var when = require('when');
+var transitionTo = require('./transition').transitionTo;
 
 function DOMTetrisShape(el, size, padding, doc) {
     this.fieldElement = el;
@@ -421,7 +423,7 @@ DOMTetrisShape.prototype = {
             rowContainer;
 
         rowContainer = this.doc.createElement('div');
-        rowContainer.style.height = (this.size + this.padding) + 'px';
+        rowContainer.style.height = (this.size) + 'px';
 
         for (columnIndex = 0; columnIndex < this.width ; ++columnIndex) {
 
@@ -471,6 +473,7 @@ DOMTetrisShape.prototype = {
 
 function DOMTetrisField(container, size, padding, doc) {
     var field = doc.createElement('div');
+    field.className = 'tetris-field';
     container.appendChild(field);
     DOMTetrisShape.call(this, field, size, padding, doc);
     this.container = container;
@@ -478,10 +481,23 @@ function DOMTetrisField(container, size, padding, doc) {
 
 DOMTetrisField.prototype = _.extend(Object.create(DOMTetrisShape.prototype), {
     dropLine: function (lineIndex) {
-        var row = this.fieldElement.children[lineIndex];
+        var self = this,
+            lineToRemove = self.fieldElement.children[lineIndex],
+            lineToAdd = self.createRowNode();
 
-        this.fieldElement.removeChild(row);
-        this.fieldElement.insertBefore(this.createRowNode(), this.fieldElement.firstChild);
+        lineToAdd.style.height = '0';
+        lineToAdd.style.borderBottom = 'none';
+        self.fieldElement.insertBefore(lineToAdd, self.fieldElement.firstChild);
+
+        setTimeout(function () {
+            var removeAnimation = transitionTo(lineToRemove, {height: '0'}),
+                addAnimation = transitionTo(lineToAdd, {height: self.size + 'px'});
+            when.join(removeAnimation, addAnimation).then(function () {
+                self.fieldElement.removeChild(lineToRemove);
+                lineToAdd.style.borderBottom = '';
+            });
+        }, 0);
+
     },
     setSize: function (width, height) {
         DOMTetrisShape.prototype.setSize.call(this, width, height);
@@ -500,6 +516,7 @@ DOMTetrisField.prototype = _.extend(Object.create(DOMTetrisShape.prototype), {
 
         domShape.setSize(shape.size, shape.size);
         domShape.fillShape(0, 0, shape);
+        domShape.fieldElement.className = 'shape';
 
         return domShape;
     },
@@ -536,7 +553,7 @@ DOMTetrisField.prototype = _.extend(Object.create(DOMTetrisShape.prototype), {
 });
 
 module.exports = DOMTetrisField;
-},{"underscore":8}],7:[function(require,module,exports){
+},{"./transition":8,"underscore":9,"when":10}],7:[function(require,module,exports){
 var EventEmitter = require('events').EventEmitter;
 var _ = require('underscore');
 
@@ -567,10 +584,45 @@ KeyboardInput.prototype = _.extend(Object.create(EventEmitter.prototype), {
 });
 
 module.exports = KeyboardInput;
-},{"events":9,"underscore":8}],8:[function(require,module,exports){
-//     Underscore.js 1.4.2
+},{"events":11,"underscore":9}],8:[function(require,module,exports){
+var when = require('when');
+
+function once(el, eventName) {
+	var d = when.defer();
+	var fn = function(e) {
+		el.removeEventListener(eventName, fn, false);
+		d.resolve(e);
+	};
+
+	el.addEventListener(eventName, fn, false);
+	return d.promise;
+}
+
+function applyCSS(el, classOrProps) {
+	if(typeof classOrProps === 'string') {
+		el.className = classOrProps;
+	} else {
+		Object.keys(classOrProps).forEach(function (propName) {
+			el.style[propName] = classOrProps[propName];
+		});
+	}
+}
+
+function transitionTo(el, classOrProps) {
+	var p = once(el, 'transitionend');
+	applyCSS(el, classOrProps);
+	return p;
+}
+
+module.exports = {
+	once: once,
+	applyCSS: applyCSS,
+	transitionTo: transitionTo
+};
+},{"when":10}],9:[function(require,module,exports){
+//     Underscore.js 1.5.2
 //     http://underscorejs.org
-//     (c) 2009-2012 Jeremy Ashkenas, DocumentCloud Inc.
+//     (c) 2009-2013 Jeremy Ashkenas, DocumentCloud and Investigative Reporters & Editors
 //     Underscore may be freely distributed under the MIT license.
 
 (function() {
@@ -578,7 +630,7 @@ module.exports = KeyboardInput;
   // Baseline setup
   // --------------
 
-  // Establish the root object, `window` in the browser, or `global` on the server.
+  // Establish the root object, `window` in the browser, or `exports` on the server.
   var root = this;
 
   // Save the previous value of the `_` variable.
@@ -591,12 +643,12 @@ module.exports = KeyboardInput;
   var ArrayProto = Array.prototype, ObjProto = Object.prototype, FuncProto = Function.prototype;
 
   // Create quick reference variables for speed access to core prototypes.
-  var push             = ArrayProto.push,
-      slice            = ArrayProto.slice,
-      concat           = ArrayProto.concat,
-      unshift          = ArrayProto.unshift,
-      toString         = ObjProto.toString,
-      hasOwnProperty   = ObjProto.hasOwnProperty;
+  var
+    push             = ArrayProto.push,
+    slice            = ArrayProto.slice,
+    concat           = ArrayProto.concat,
+    toString         = ObjProto.toString,
+    hasOwnProperty   = ObjProto.hasOwnProperty;
 
   // All **ECMAScript 5** native function implementations that we hope to use
   // are declared here.
@@ -631,11 +683,11 @@ module.exports = KeyboardInput;
     }
     exports._ = _;
   } else {
-    root['_'] = _;
+    root._ = _;
   }
 
   // Current version.
-  _.VERSION = '1.4.2';
+  _.VERSION = '1.5.2';
 
   // Collection Functions
   // --------------------
@@ -648,14 +700,13 @@ module.exports = KeyboardInput;
     if (nativeForEach && obj.forEach === nativeForEach) {
       obj.forEach(iterator, context);
     } else if (obj.length === +obj.length) {
-      for (var i = 0, l = obj.length; i < l; i++) {
+      for (var i = 0, length = obj.length; i < length; i++) {
         if (iterator.call(context, obj[i], i, obj) === breaker) return;
       }
     } else {
-      for (var key in obj) {
-        if (_.has(obj, key)) {
-          if (iterator.call(context, obj[key], key, obj) === breaker) return;
-        }
+      var keys = _.keys(obj);
+      for (var i = 0, length = keys.length; i < length; i++) {
+        if (iterator.call(context, obj[keys[i]], keys[i], obj) === breaker) return;
       }
     }
   };
@@ -667,10 +718,12 @@ module.exports = KeyboardInput;
     if (obj == null) return results;
     if (nativeMap && obj.map === nativeMap) return obj.map(iterator, context);
     each(obj, function(value, index, list) {
-      results[results.length] = iterator.call(context, value, index, list);
+      results.push(iterator.call(context, value, index, list));
     });
     return results;
   };
+
+  var reduceError = 'Reduce of empty array with no initial value';
 
   // **Reduce** builds up a single result from a list of values, aka `inject`,
   // or `foldl`. Delegates to **ECMAScript 5**'s native `reduce` if available.
@@ -689,7 +742,7 @@ module.exports = KeyboardInput;
         memo = iterator.call(context, memo, value, index, list);
       }
     });
-    if (!initial) throw new TypeError('Reduce of empty array with no initial value');
+    if (!initial) throw new TypeError(reduceError);
     return memo;
   };
 
@@ -700,7 +753,7 @@ module.exports = KeyboardInput;
     if (obj == null) obj = [];
     if (nativeReduceRight && obj.reduceRight === nativeReduceRight) {
       if (context) iterator = _.bind(iterator, context);
-      return arguments.length > 2 ? obj.reduceRight(iterator, memo) : obj.reduceRight(iterator);
+      return initial ? obj.reduceRight(iterator, memo) : obj.reduceRight(iterator);
     }
     var length = obj.length;
     if (length !== +length) {
@@ -716,7 +769,7 @@ module.exports = KeyboardInput;
         memo = iterator.call(context, memo, obj[index], index, list);
       }
     });
-    if (!initial) throw new TypeError('Reduce of empty array with no initial value');
+    if (!initial) throw new TypeError(reduceError);
     return memo;
   };
 
@@ -740,19 +793,16 @@ module.exports = KeyboardInput;
     if (obj == null) return results;
     if (nativeFilter && obj.filter === nativeFilter) return obj.filter(iterator, context);
     each(obj, function(value, index, list) {
-      if (iterator.call(context, value, index, list)) results[results.length] = value;
+      if (iterator.call(context, value, index, list)) results.push(value);
     });
     return results;
   };
 
   // Return all the elements for which a truth test fails.
   _.reject = function(obj, iterator, context) {
-    var results = [];
-    if (obj == null) return results;
-    each(obj, function(value, index, list) {
-      if (!iterator.call(context, value, index, list)) results[results.length] = value;
-    });
-    return results;
+    return _.filter(obj, function(value, index, list) {
+      return !iterator.call(context, value, index, list);
+    }, context);
   };
 
   // Determine whether all of the elements match a truth test.
@@ -786,20 +836,19 @@ module.exports = KeyboardInput;
   // Determine if the array or object contains a given value (using `===`).
   // Aliased as `include`.
   _.contains = _.include = function(obj, target) {
-    var found = false;
-    if (obj == null) return found;
+    if (obj == null) return false;
     if (nativeIndexOf && obj.indexOf === nativeIndexOf) return obj.indexOf(target) != -1;
-    found = any(obj, function(value) {
+    return any(obj, function(value) {
       return value === target;
     });
-    return found;
   };
 
   // Invoke a method (with arguments) on every item in a collection.
   _.invoke = function(obj, method) {
     var args = slice.call(arguments, 2);
+    var isFunc = _.isFunction(method);
     return _.map(obj, function(value) {
-      return (_.isFunction(method) ? method : value[method]).apply(value, args);
+      return (isFunc ? method : value[method]).apply(value, args);
     });
   };
 
@@ -809,10 +858,10 @@ module.exports = KeyboardInput;
   };
 
   // Convenience version of a common use case of `filter`: selecting only objects
-  // with specific `key:value` pairs.
-  _.where = function(obj, attrs) {
-    if (_.isEmpty(attrs)) return [];
-    return _.filter(obj, function(value) {
+  // containing specific `key:value` pairs.
+  _.where = function(obj, attrs, first) {
+    if (_.isEmpty(attrs)) return first ? void 0 : [];
+    return _[first ? 'find' : 'filter'](obj, function(value) {
       for (var key in attrs) {
         if (attrs[key] !== value[key]) return false;
       }
@@ -820,18 +869,24 @@ module.exports = KeyboardInput;
     });
   };
 
+  // Convenience version of a common use case of `find`: getting the first object
+  // containing specific `key:value` pairs.
+  _.findWhere = function(obj, attrs) {
+    return _.where(obj, attrs, true);
+  };
+
   // Return the maximum element or (element-based computation).
   // Can't optimize arrays of integers longer than 65,535 elements.
-  // See: https://bugs.webkit.org/show_bug.cgi?id=80797
+  // See [WebKit Bug 80797](https://bugs.webkit.org/show_bug.cgi?id=80797)
   _.max = function(obj, iterator, context) {
     if (!iterator && _.isArray(obj) && obj[0] === +obj[0] && obj.length < 65535) {
       return Math.max.apply(Math, obj);
     }
     if (!iterator && _.isEmpty(obj)) return -Infinity;
-    var result = {computed : -Infinity};
+    var result = {computed : -Infinity, value: -Infinity};
     each(obj, function(value, index, list) {
       var computed = iterator ? iterator.call(context, value, index, list) : value;
-      computed >= result.computed && (result = {value : value, computed : computed});
+      computed > result.computed && (result = {value : value, computed : computed});
     });
     return result.value;
   };
@@ -842,7 +897,7 @@ module.exports = KeyboardInput;
       return Math.min.apply(Math, obj);
     }
     if (!iterator && _.isEmpty(obj)) return Infinity;
-    var result = {computed : Infinity};
+    var result = {computed : Infinity, value: Infinity};
     each(obj, function(value, index, list) {
       var computed = iterator ? iterator.call(context, value, index, list) : value;
       computed < result.computed && (result = {value : value, computed : computed});
@@ -850,7 +905,8 @@ module.exports = KeyboardInput;
     return result.value;
   };
 
-  // Shuffle an array.
+  // Shuffle an array, using the modern version of the 
+  // [Fisher-Yates shuffle](http://en.wikipedia.org/wiki/Fisher–Yates_shuffle).
   _.shuffle = function(obj) {
     var rand;
     var index = 0;
@@ -863,6 +919,16 @@ module.exports = KeyboardInput;
     return shuffled;
   };
 
+  // Sample **n** random values from an array.
+  // If **n** is not specified, returns a single random element from the array.
+  // The internal `guard` argument allows it to work with `map`.
+  _.sample = function(obj, n, guard) {
+    if (arguments.length < 2 || guard) {
+      return obj[_.random(obj.length - 1)];
+    }
+    return _.shuffle(obj).slice(0, Math.max(0, n));
+  };
+
   // An internal function to generate lookup iterators.
   var lookupIterator = function(value) {
     return _.isFunction(value) ? value : function(obj){ return obj[value]; };
@@ -873,9 +939,9 @@ module.exports = KeyboardInput;
     var iterator = lookupIterator(value);
     return _.pluck(_.map(obj, function(value, index, list) {
       return {
-        value : value,
-        index : index,
-        criteria : iterator.call(context, value, index, list)
+        value: value,
+        index: index,
+        criteria: iterator.call(context, value, index, list)
       };
     }).sort(function(left, right) {
       var a = left.criteria;
@@ -884,38 +950,41 @@ module.exports = KeyboardInput;
         if (a > b || a === void 0) return 1;
         if (a < b || b === void 0) return -1;
       }
-      return left.index < right.index ? -1 : 1;
+      return left.index - right.index;
     }), 'value');
   };
 
   // An internal function used for aggregate "group by" operations.
-  var group = function(obj, value, context, behavior) {
-    var result = {};
-    var iterator = lookupIterator(value);
-    each(obj, function(value, index) {
-      var key = iterator.call(context, value, index, obj);
-      behavior(result, key, value);
-    });
-    return result;
+  var group = function(behavior) {
+    return function(obj, value, context) {
+      var result = {};
+      var iterator = value == null ? _.identity : lookupIterator(value);
+      each(obj, function(value, index) {
+        var key = iterator.call(context, value, index, obj);
+        behavior(result, key, value);
+      });
+      return result;
+    };
   };
 
   // Groups the object's values by a criterion. Pass either a string attribute
   // to group by, or a function that returns the criterion.
-  _.groupBy = function(obj, value, context) {
-    return group(obj, value, context, function(result, key, value) {
-      (_.has(result, key) ? result[key] : (result[key] = [])).push(value);
-    });
-  };
+  _.groupBy = group(function(result, key, value) {
+    (_.has(result, key) ? result[key] : (result[key] = [])).push(value);
+  });
+
+  // Indexes the object's values by a criterion, similar to `groupBy`, but for
+  // when you know that your index values will be unique.
+  _.indexBy = group(function(result, key, value) {
+    result[key] = value;
+  });
 
   // Counts instances of an object that group by a certain criterion. Pass
   // either a string attribute to count by, or a function that returns the
   // criterion.
-  _.countBy = function(obj, value, context) {
-    return group(obj, value, context, function(result, key, value) {
-      if (!_.has(result, key)) result[key] = 0;
-      result[key]++;
-    });
-  };
+  _.countBy = group(function(result, key) {
+    _.has(result, key) ? result[key]++ : result[key] = 1;
+  });
 
   // Use a comparator function to figure out the smallest index at which
   // an object should be inserted so as to maintain order. Uses binary search.
@@ -930,15 +999,17 @@ module.exports = KeyboardInput;
     return low;
   };
 
-  // Safely convert anything iterable into a real, live array.
+  // Safely create a real, live array from anything iterable.
   _.toArray = function(obj) {
     if (!obj) return [];
-    if (obj.length === +obj.length) return slice.call(obj);
+    if (_.isArray(obj)) return slice.call(obj);
+    if (obj.length === +obj.length) return _.map(obj, _.identity);
     return _.values(obj);
   };
 
   // Return the number of elements in an object.
   _.size = function(obj) {
+    if (obj == null) return 0;
     return (obj.length === +obj.length) ? obj.length : _.keys(obj).length;
   };
 
@@ -949,7 +1020,8 @@ module.exports = KeyboardInput;
   // values in the array. Aliased as `head` and `take`. The **guard** check
   // allows it to work with `_.map`.
   _.first = _.head = _.take = function(array, n, guard) {
-    return (n != null) && !guard ? slice.call(array, 0, n) : array[0];
+    if (array == null) return void 0;
+    return (n == null) || guard ? array[0] : slice.call(array, 0, n);
   };
 
   // Returns everything but the last entry of the array. Especially useful on
@@ -963,10 +1035,11 @@ module.exports = KeyboardInput;
   // Get the last element of an array. Passing **n** will return the last N
   // values in the array. The **guard** check allows it to work with `_.map`.
   _.last = function(array, n, guard) {
-    if ((n != null) && !guard) {
-      return slice.call(array, Math.max(array.length - n, 0));
-    } else {
+    if (array == null) return void 0;
+    if ((n == null) || guard) {
       return array[array.length - 1];
+    } else {
+      return slice.call(array, Math.max(array.length - n, 0));
     }
   };
 
@@ -980,13 +1053,16 @@ module.exports = KeyboardInput;
 
   // Trim out all falsy values from an array.
   _.compact = function(array) {
-    return _.filter(array, function(value){ return !!value; });
+    return _.filter(array, _.identity);
   };
 
   // Internal implementation of a recursive `flatten` function.
   var flatten = function(input, shallow, output) {
+    if (shallow && _.every(input, _.isArray)) {
+      return concat.apply(output, input);
+    }
     each(input, function(value) {
-      if (_.isArray(value)) {
+      if (_.isArray(value) || _.isArguments(value)) {
         shallow ? push.apply(output, value) : flatten(value, shallow, output);
       } else {
         output.push(value);
@@ -995,7 +1071,7 @@ module.exports = KeyboardInput;
     return output;
   };
 
-  // Return a completely flattened version of an array.
+  // Flatten out an array, either recursively (by default), or just one level.
   _.flatten = function(array, shallow) {
     return flatten(array, shallow, []);
   };
@@ -1009,6 +1085,11 @@ module.exports = KeyboardInput;
   // been sorted, you have the option of using a faster algorithm.
   // Aliased as `unique`.
   _.uniq = _.unique = function(array, isSorted, iterator, context) {
+    if (_.isFunction(isSorted)) {
+      context = iterator;
+      iterator = isSorted;
+      isSorted = false;
+    }
     var initial = iterator ? _.map(array, iterator, context) : array;
     var results = [];
     var seen = [];
@@ -1024,7 +1105,7 @@ module.exports = KeyboardInput;
   // Produce an array that contains the union: each distinct element from all of
   // the passed-in arrays.
   _.union = function() {
-    return _.uniq(concat.apply(ArrayProto, arguments));
+    return _.uniq(_.flatten(arguments, true));
   };
 
   // Produce an array that contains every item shared between all the
@@ -1048,11 +1129,10 @@ module.exports = KeyboardInput;
   // Zip together multiple lists into a single array -- elements that share
   // an index go together.
   _.zip = function() {
-    var args = slice.call(arguments);
-    var length = _.max(_.pluck(args, 'length'));
+    var length = _.max(_.pluck(arguments, "length").concat(0));
     var results = new Array(length);
     for (var i = 0; i < length; i++) {
-      results[i] = _.pluck(args, "" + i);
+      results[i] = _.pluck(arguments, '' + i);
     }
     return results;
   };
@@ -1061,8 +1141,9 @@ module.exports = KeyboardInput;
   // pairs, or two parallel arrays of the same length -- one of keys, and one of
   // the corresponding values.
   _.object = function(list, values) {
+    if (list == null) return {};
     var result = {};
-    for (var i = 0, l = list.length; i < l; i++) {
+    for (var i = 0, length = list.length; i < length; i++) {
       if (values) {
         result[list[i]] = values[i];
       } else {
@@ -1080,17 +1161,17 @@ module.exports = KeyboardInput;
   // for **isSorted** to use binary search.
   _.indexOf = function(array, item, isSorted) {
     if (array == null) return -1;
-    var i = 0, l = array.length;
+    var i = 0, length = array.length;
     if (isSorted) {
       if (typeof isSorted == 'number') {
-        i = (isSorted < 0 ? Math.max(0, l + isSorted) : isSorted);
+        i = (isSorted < 0 ? Math.max(0, length + isSorted) : isSorted);
       } else {
         i = _.sortedIndex(array, item);
         return array[i] === item ? i : -1;
       }
     }
     if (nativeIndexOf && array.indexOf === nativeIndexOf) return array.indexOf(item, isSorted);
-    for (; i < l; i++) if (array[i] === item) return i;
+    for (; i < length; i++) if (array[i] === item) return i;
     return -1;
   };
 
@@ -1116,11 +1197,11 @@ module.exports = KeyboardInput;
     }
     step = arguments[2] || 1;
 
-    var len = Math.max(Math.ceil((stop - start) / step), 0);
+    var length = Math.max(Math.ceil((stop - start) / step), 0);
     var idx = 0;
-    var range = new Array(len);
+    var range = new Array(length);
 
-    while(idx < len) {
+    while(idx < length) {
       range[idx++] = start;
       start += step;
     }
@@ -1135,21 +1216,30 @@ module.exports = KeyboardInput;
   var ctor = function(){};
 
   // Create a function bound to a given object (assigning `this`, and arguments,
-  // optionally). Binding with arguments is also known as `curry`.
-  // Delegates to **ECMAScript 5**'s native `Function.bind` if available.
-  // We check for `func.bind` first, to fail fast when `func` is undefined.
-  _.bind = function bind(func, context) {
-    var bound, args;
-    if (func.bind === nativeBind && nativeBind) return nativeBind.apply(func, slice.call(arguments, 1));
+  // optionally). Delegates to **ECMAScript 5**'s native `Function.bind` if
+  // available.
+  _.bind = function(func, context) {
+    var args, bound;
+    if (nativeBind && func.bind === nativeBind) return nativeBind.apply(func, slice.call(arguments, 1));
     if (!_.isFunction(func)) throw new TypeError;
     args = slice.call(arguments, 2);
     return bound = function() {
       if (!(this instanceof bound)) return func.apply(context, args.concat(slice.call(arguments)));
       ctor.prototype = func.prototype;
       var self = new ctor;
+      ctor.prototype = null;
       var result = func.apply(self, args.concat(slice.call(arguments)));
       if (Object(result) === result) return result;
       return self;
+    };
+  };
+
+  // Partially apply a function by creating a version that has had some of its
+  // arguments pre-filled, without changing its dynamic `this` context.
+  _.partial = function(func) {
+    var args = slice.call(arguments, 1);
+    return function() {
+      return func.apply(this, args.concat(slice.call(arguments)));
     };
   };
 
@@ -1157,7 +1247,7 @@ module.exports = KeyboardInput;
   // all callbacks defined on an object belong to it.
   _.bindAll = function(obj) {
     var funcs = slice.call(arguments, 1);
-    if (funcs.length == 0) funcs = _.functions(obj);
+    if (funcs.length === 0) throw new Error("bindAll must be passed function names");
     each(funcs, function(f) { obj[f] = _.bind(obj[f], obj); });
     return obj;
   };
@@ -1186,27 +1276,34 @@ module.exports = KeyboardInput;
   };
 
   // Returns a function, that, when invoked, will only be triggered at most once
-  // during a given window of time.
-  _.throttle = function(func, wait) {
-    var context, args, timeout, throttling, more, result;
-    var whenDone = _.debounce(function(){ more = throttling = false; }, wait);
+  // during a given window of time. Normally, the throttled function will run
+  // as much as it can, without ever going more than once per `wait` duration;
+  // but if you'd like to disable the execution on the leading edge, pass
+  // `{leading: false}`. To disable execution on the trailing edge, ditto.
+  _.throttle = function(func, wait, options) {
+    var context, args, result;
+    var timeout = null;
+    var previous = 0;
+    options || (options = {});
+    var later = function() {
+      previous = options.leading === false ? 0 : new Date;
+      timeout = null;
+      result = func.apply(context, args);
+    };
     return function() {
-      context = this; args = arguments;
-      var later = function() {
+      var now = new Date;
+      if (!previous && options.leading === false) previous = now;
+      var remaining = wait - (now - previous);
+      context = this;
+      args = arguments;
+      if (remaining <= 0) {
+        clearTimeout(timeout);
         timeout = null;
-        if (more) {
-          result = func.apply(context, args);
-        }
-        whenDone();
-      };
-      if (!timeout) timeout = setTimeout(later, wait);
-      if (throttling) {
-        more = true;
-      } else {
-        throttling = true;
+        previous = now;
         result = func.apply(context, args);
+      } else if (!timeout && options.trailing !== false) {
+        timeout = setTimeout(later, remaining);
       }
-      whenDone();
       return result;
     };
   };
@@ -1216,16 +1313,24 @@ module.exports = KeyboardInput;
   // N milliseconds. If `immediate` is passed, trigger the function on the
   // leading edge, instead of the trailing.
   _.debounce = function(func, wait, immediate) {
-    var timeout, result;
+    var timeout, args, context, timestamp, result;
     return function() {
-      var context = this, args = arguments;
+      context = this;
+      args = arguments;
+      timestamp = new Date();
       var later = function() {
-        timeout = null;
-        if (!immediate) result = func.apply(context, args);
+        var last = (new Date()) - timestamp;
+        if (last < wait) {
+          timeout = setTimeout(later, wait - last);
+        } else {
+          timeout = null;
+          if (!immediate) result = func.apply(context, args);
+        }
       };
       var callNow = immediate && !timeout;
-      clearTimeout(timeout);
-      timeout = setTimeout(later, wait);
+      if (!timeout) {
+        timeout = setTimeout(later, wait);
+      }
       if (callNow) result = func.apply(context, args);
       return result;
     };
@@ -1270,7 +1375,6 @@ module.exports = KeyboardInput;
 
   // Returns a function that will only be executed after being called N times.
   _.after = function(times, func) {
-    if (times <= 0) return func();
     return function() {
       if (--times < 1) {
         return func.apply(this, arguments);
@@ -1286,28 +1390,39 @@ module.exports = KeyboardInput;
   _.keys = nativeKeys || function(obj) {
     if (obj !== Object(obj)) throw new TypeError('Invalid object');
     var keys = [];
-    for (var key in obj) if (_.has(obj, key)) keys[keys.length] = key;
+    for (var key in obj) if (_.has(obj, key)) keys.push(key);
     return keys;
   };
 
   // Retrieve the values of an object's properties.
   _.values = function(obj) {
-    var values = [];
-    for (var key in obj) if (_.has(obj, key)) values.push(obj[key]);
+    var keys = _.keys(obj);
+    var length = keys.length;
+    var values = new Array(length);
+    for (var i = 0; i < length; i++) {
+      values[i] = obj[keys[i]];
+    }
     return values;
   };
 
   // Convert an object into a list of `[key, value]` pairs.
   _.pairs = function(obj) {
-    var pairs = [];
-    for (var key in obj) if (_.has(obj, key)) pairs.push([key, obj[key]]);
+    var keys = _.keys(obj);
+    var length = keys.length;
+    var pairs = new Array(length);
+    for (var i = 0; i < length; i++) {
+      pairs[i] = [keys[i], obj[keys[i]]];
+    }
     return pairs;
   };
 
   // Invert the keys and values of an object. The values must be serializable.
   _.invert = function(obj) {
     var result = {};
-    for (var key in obj) if (_.has(obj, key)) result[obj[key]] = key;
+    var keys = _.keys(obj);
+    for (var i = 0, length = keys.length; i < length; i++) {
+      result[obj[keys[i]]] = keys[i];
+    }
     return result;
   };
 
@@ -1324,8 +1439,10 @@ module.exports = KeyboardInput;
   // Extend a given object with all the properties in passed-in object(s).
   _.extend = function(obj) {
     each(slice.call(arguments, 1), function(source) {
-      for (var prop in source) {
-        obj[prop] = source[prop];
+      if (source) {
+        for (var prop in source) {
+          obj[prop] = source[prop];
+        }
       }
     });
     return obj;
@@ -1354,8 +1471,10 @@ module.exports = KeyboardInput;
   // Fill in a given object with default properties.
   _.defaults = function(obj) {
     each(slice.call(arguments, 1), function(source) {
-      for (var prop in source) {
-        if (obj[prop] == null) obj[prop] = source[prop];
+      if (source) {
+        for (var prop in source) {
+          if (obj[prop] === void 0) obj[prop] = source[prop];
+        }
       }
     });
     return obj;
@@ -1378,7 +1497,7 @@ module.exports = KeyboardInput;
   // Internal recursive comparison function for `isEqual`.
   var eq = function(a, b, aStack, bStack) {
     // Identical objects are equal. `0 === -0`, but they aren't identical.
-    // See the Harmony `egal` proposal: http://wiki.ecmascript.org/doku.php?id=harmony:egal.
+    // See the [Harmony `egal` proposal](http://wiki.ecmascript.org/doku.php?id=harmony:egal).
     if (a === b) return a !== 0 || 1 / a == 1 / b;
     // A strict comparison is necessary because `null == undefined`.
     if (a == null || b == null) return a === b;
@@ -1420,6 +1539,13 @@ module.exports = KeyboardInput;
       // unique nested structures.
       if (aStack[length] == a) return bStack[length] == b;
     }
+    // Objects with different constructors are not equivalent, but `Object`s
+    // from different frames are.
+    var aCtor = a.constructor, bCtor = b.constructor;
+    if (aCtor !== bCtor && !(_.isFunction(aCtor) && (aCtor instanceof aCtor) &&
+                             _.isFunction(bCtor) && (bCtor instanceof bCtor))) {
+      return false;
+    }
     // Add the first object to the stack of traversed objects.
     aStack.push(a);
     bStack.push(b);
@@ -1436,13 +1562,6 @@ module.exports = KeyboardInput;
         }
       }
     } else {
-      // Objects with different constructors are not equivalent, but `Object`s
-      // from different frames are.
-      var aCtor = a.constructor, bCtor = b.constructor;
-      if (aCtor !== bCtor && !(_.isFunction(aCtor) && (aCtor instanceof aCtor) &&
-                               _.isFunction(bCtor) && (bCtor instanceof bCtor))) {
-        return false;
-      }
       // Deep compare objects.
       for (var key in a) {
         if (_.has(a, key)) {
@@ -1520,7 +1639,7 @@ module.exports = KeyboardInput;
 
   // Is a given object a finite number?
   _.isFinite = function(obj) {
-    return _.isNumber(obj) && isFinite(obj);
+    return isFinite(obj) && !isNaN(parseFloat(obj));
   };
 
   // Is the given value `NaN`? (NaN is the only number which does not equal itself).
@@ -1566,7 +1685,9 @@ module.exports = KeyboardInput;
 
   // Run a function **n** times.
   _.times = function(n, iterator, context) {
-    for (var i = 0; i < n; i++) iterator.call(context, i);
+    var accum = Array(Math.max(0, n));
+    for (var i = 0; i < n; i++) accum[i] = iterator.call(context, i);
+    return accum;
   };
 
   // Return a random integer between min and max (inclusive).
@@ -1575,7 +1696,7 @@ module.exports = KeyboardInput;
       max = min;
       min = 0;
     }
-    return min + (0 | Math.random() * (max - min + 1));
+    return min + Math.floor(Math.random() * (max - min + 1));
   };
 
   // List of HTML entities for escaping.
@@ -1585,8 +1706,7 @@ module.exports = KeyboardInput;
       '<': '&lt;',
       '>': '&gt;',
       '"': '&quot;',
-      "'": '&#x27;',
-      '/': '&#x2F;'
+      "'": '&#x27;'
     }
   };
   entityMap.unescape = _.invert(entityMap.escape);
@@ -1607,17 +1727,17 @@ module.exports = KeyboardInput;
     };
   });
 
-  // If the value of the named property is a function then invoke it;
-  // otherwise, return it.
+  // If the value of the named `property` is a function then invoke it with the
+  // `object` as context; otherwise, return it.
   _.result = function(object, property) {
-    if (object == null) return null;
+    if (object == null) return void 0;
     var value = object[property];
     return _.isFunction(value) ? value.call(object) : value;
   };
 
   // Add your own custom functions to the Underscore object.
   _.mixin = function(obj) {
-    each(_.functions(obj), function(name){
+    each(_.functions(obj), function(name) {
       var func = _[name] = obj[name];
       _.prototype[name] = function() {
         var args = [this._wrapped];
@@ -1631,7 +1751,7 @@ module.exports = KeyboardInput;
   // Useful for temporary DOM ids.
   var idCounter = 0;
   _.uniqueId = function(prefix) {
-    var id = idCounter++;
+    var id = ++idCounter + '';
     return prefix ? prefix + id : id;
   };
 
@@ -1666,6 +1786,7 @@ module.exports = KeyboardInput;
   // Underscore templating handles arbitrary delimiters, preserves whitespace,
   // and correctly escapes quotes within interpolated code.
   _.template = function(text, data, settings) {
+    var render;
     settings = _.defaults({}, settings, _.templateSettings);
 
     // Combine delimiters into one regular expression via alternation.
@@ -1681,11 +1802,18 @@ module.exports = KeyboardInput;
     text.replace(matcher, function(match, escape, interpolate, evaluate, offset) {
       source += text.slice(index, offset)
         .replace(escaper, function(match) { return '\\' + escapes[match]; });
-      source +=
-        escape ? "'+\n((__t=(" + escape + "))==null?'':_.escape(__t))+\n'" :
-        interpolate ? "'+\n((__t=(" + interpolate + "))==null?'':__t)+\n'" :
-        evaluate ? "';\n" + evaluate + "\n__p+='" : '';
+
+      if (escape) {
+        source += "'+\n((__t=(" + escape + "))==null?'':_.escape(__t))+\n'";
+      }
+      if (interpolate) {
+        source += "'+\n((__t=(" + interpolate + "))==null?'':__t)+\n'";
+      }
+      if (evaluate) {
+        source += "';\n" + evaluate + "\n__p+='";
+      }
       index = offset + match.length;
+      return match;
     });
     source += "';\n";
 
@@ -1697,7 +1825,7 @@ module.exports = KeyboardInput;
       source + "return __p;\n";
 
     try {
-      var render = new Function(settings.variable || 'obj', '_', source);
+      render = new Function(settings.variable || 'obj', '_', source);
     } catch (e) {
       e.source = source;
       throw e;
@@ -1769,7 +1897,937 @@ module.exports = KeyboardInput;
 
 }).call(this);
 
-},{}],9:[function(require,module,exports){
+},{}],10:[function(require,module,exports){
+var process=require("__browserify_process");/** @license MIT License (c) copyright 2011-2013 original author or authors */
+
+/**
+ * A lightweight CommonJS Promises/A and when() implementation
+ * when is part of the cujo.js family of libraries (http://cujojs.com/)
+ *
+ * Licensed under the MIT License at:
+ * http://www.opensource.org/licenses/mit-license.php
+ *
+ * @author Brian Cavalier
+ * @author John Hann
+ * @version 2.7.1
+ */
+(function(define) { 'use strict';
+define(function (require) {
+
+	// Public API
+
+	when.promise   = promise;    // Create a pending promise
+	when.resolve   = resolve;    // Create a resolved promise
+	when.reject    = reject;     // Create a rejected promise
+	when.defer     = defer;      // Create a {promise, resolver} pair
+
+	when.join      = join;       // Join 2 or more promises
+
+	when.all       = all;        // Resolve a list of promises
+	when.map       = map;        // Array.map() for promises
+	when.reduce    = reduce;     // Array.reduce() for promises
+	when.settle    = settle;     // Settle a list of promises
+
+	when.any       = any;        // One-winner race
+	when.some      = some;       // Multi-winner race
+
+	when.isPromise = isPromiseLike;  // DEPRECATED: use isPromiseLike
+	when.isPromiseLike = isPromiseLike; // Is something promise-like, aka thenable
+
+	/**
+	 * Register an observer for a promise or immediate value.
+	 *
+	 * @param {*} promiseOrValue
+	 * @param {function?} [onFulfilled] callback to be called when promiseOrValue is
+	 *   successfully fulfilled.  If promiseOrValue is an immediate value, callback
+	 *   will be invoked immediately.
+	 * @param {function?} [onRejected] callback to be called when promiseOrValue is
+	 *   rejected.
+	 * @param {function?} [onProgress] callback to be called when progress updates
+	 *   are issued for promiseOrValue.
+	 * @returns {Promise} a new {@link Promise} that will complete with the return
+	 *   value of callback or errback or the completion value of promiseOrValue if
+	 *   callback and/or errback is not supplied.
+	 */
+	function when(promiseOrValue, onFulfilled, onRejected, onProgress) {
+		// Get a trusted promise for the input promiseOrValue, and then
+		// register promise handlers
+		return cast(promiseOrValue).then(onFulfilled, onRejected, onProgress);
+	}
+
+	/**
+	 * Creates a new promise whose fate is determined by resolver.
+	 * @param {function} resolver function(resolve, reject, notify)
+	 * @returns {Promise} promise whose fate is determine by resolver
+	 */
+	function promise(resolver) {
+		return new Promise(resolver,
+			monitorApi.PromiseStatus && monitorApi.PromiseStatus());
+	}
+
+	/**
+	 * Trusted Promise constructor.  A Promise created from this constructor is
+	 * a trusted when.js promise.  Any other duck-typed promise is considered
+	 * untrusted.
+	 * @constructor
+	 * @returns {Promise} promise whose fate is determine by resolver
+	 * @name Promise
+	 */
+	function Promise(resolver, status) {
+		var self, value, consumers = [];
+
+		self = this;
+		this._status = status;
+		this.inspect = inspect;
+		this._when = _when;
+
+		// Call the provider resolver to seal the promise's fate
+		try {
+			resolver(promiseResolve, promiseReject, promiseNotify);
+		} catch(e) {
+			promiseReject(e);
+		}
+
+		/**
+		 * Returns a snapshot of this promise's current status at the instant of call
+		 * @returns {{state:String}}
+		 */
+		function inspect() {
+			return value ? value.inspect() : toPendingState();
+		}
+
+		/**
+		 * Private message delivery. Queues and delivers messages to
+		 * the promise's ultimate fulfillment value or rejection reason.
+		 * @private
+		 */
+		function _when(resolve, notify, onFulfilled, onRejected, onProgress) {
+			consumers ? consumers.push(deliver) : enqueue(function() { deliver(value); });
+
+			function deliver(p) {
+				p._when(resolve, notify, onFulfilled, onRejected, onProgress);
+			}
+		}
+
+		/**
+		 * Transition from pre-resolution state to post-resolution state, notifying
+		 * all listeners of the ultimate fulfillment or rejection
+		 * @param {*} val resolution value
+		 */
+		function promiseResolve(val) {
+			if(!consumers) {
+				return;
+			}
+
+			var queue = consumers;
+			consumers = undef;
+
+			enqueue(function () {
+				value = coerce(self, val);
+				if(status) {
+					updateStatus(value, status);
+				}
+				runHandlers(queue, value);
+			});
+		}
+
+		/**
+		 * Reject this promise with the supplied reason, which will be used verbatim.
+		 * @param {*} reason reason for the rejection
+		 */
+		function promiseReject(reason) {
+			promiseResolve(new RejectedPromise(reason));
+		}
+
+		/**
+		 * Issue a progress event, notifying all progress listeners
+		 * @param {*} update progress event payload to pass to all listeners
+		 */
+		function promiseNotify(update) {
+			if(consumers) {
+				var queue = consumers;
+				enqueue(function () {
+					runHandlers(queue, new ProgressingPromise(update));
+				});
+			}
+		}
+	}
+
+	promisePrototype = Promise.prototype;
+
+	/**
+	 * Register handlers for this promise.
+	 * @param [onFulfilled] {Function} fulfillment handler
+	 * @param [onRejected] {Function} rejection handler
+	 * @param [onProgress] {Function} progress handler
+	 * @return {Promise} new Promise
+	 */
+	promisePrototype.then = function(onFulfilled, onRejected, onProgress) {
+		var self = this;
+
+		return new Promise(function(resolve, reject, notify) {
+			self._when(resolve, notify, onFulfilled, onRejected, onProgress);
+		}, this._status && this._status.observed());
+	};
+
+	/**
+	 * Register a rejection handler.  Shortcut for .then(undefined, onRejected)
+	 * @param {function?} onRejected
+	 * @return {Promise}
+	 */
+	promisePrototype['catch'] = promisePrototype.otherwise = function(onRejected) {
+		return this.then(undef, onRejected);
+	};
+
+	/**
+	 * Ensures that onFulfilledOrRejected will be called regardless of whether
+	 * this promise is fulfilled or rejected.  onFulfilledOrRejected WILL NOT
+	 * receive the promises' value or reason.  Any returned value will be disregarded.
+	 * onFulfilledOrRejected may throw or return a rejected promise to signal
+	 * an additional error.
+	 * @param {function} onFulfilledOrRejected handler to be called regardless of
+	 *  fulfillment or rejection
+	 * @returns {Promise}
+	 */
+	promisePrototype['finally'] = promisePrototype.ensure = function(onFulfilledOrRejected) {
+		return typeof onFulfilledOrRejected === 'function'
+			? this.then(injectHandler, injectHandler)['yield'](this)
+			: this;
+
+		function injectHandler() {
+			return resolve(onFulfilledOrRejected());
+		}
+	};
+
+	/**
+	 * Terminate a promise chain by handling the ultimate fulfillment value or
+	 * rejection reason, and assuming responsibility for all errors.  if an
+	 * error propagates out of handleResult or handleFatalError, it will be
+	 * rethrown to the host, resulting in a loud stack track on most platforms
+	 * and a crash on some.
+	 * @param {function?} handleResult
+	 * @param {function?} handleError
+	 * @returns {undefined}
+	 */
+	promisePrototype.done = function(handleResult, handleError) {
+		this.then(handleResult, handleError)['catch'](crash);
+	};
+
+	/**
+	 * Shortcut for .then(function() { return value; })
+	 * @param  {*} value
+	 * @return {Promise} a promise that:
+	 *  - is fulfilled if value is not a promise, or
+	 *  - if value is a promise, will fulfill with its value, or reject
+	 *    with its reason.
+	 */
+	promisePrototype['yield'] = function(value) {
+		return this.then(function() {
+			return value;
+		});
+	};
+
+	/**
+	 * Runs a side effect when this promise fulfills, without changing the
+	 * fulfillment value.
+	 * @param {function} onFulfilledSideEffect
+	 * @returns {Promise}
+	 */
+	promisePrototype.tap = function(onFulfilledSideEffect) {
+		return this.then(onFulfilledSideEffect)['yield'](this);
+	};
+
+	/**
+	 * Assumes that this promise will fulfill with an array, and arranges
+	 * for the onFulfilled to be called with the array as its argument list
+	 * i.e. onFulfilled.apply(undefined, array).
+	 * @param {function} onFulfilled function to receive spread arguments
+	 * @return {Promise}
+	 */
+	promisePrototype.spread = function(onFulfilled) {
+		return this.then(function(array) {
+			// array may contain promises, so resolve its contents.
+			return all(array, function(array) {
+				return onFulfilled.apply(undef, array);
+			});
+		});
+	};
+
+	/**
+	 * Shortcut for .then(onFulfilledOrRejected, onFulfilledOrRejected)
+	 * @deprecated
+	 */
+	promisePrototype.always = function(onFulfilledOrRejected, onProgress) {
+		return this.then(onFulfilledOrRejected, onFulfilledOrRejected, onProgress);
+	};
+
+	/**
+	 * Casts x to a trusted promise. If x is already a trusted promise, it is
+	 * returned, otherwise a new trusted Promise which follows x is returned.
+	 * @param {*} x
+	 * @returns {Promise}
+	 */
+	function cast(x) {
+		return x instanceof Promise ? x : resolve(x);
+	}
+
+	/**
+	 * Returns a resolved promise. The returned promise will be
+	 *  - fulfilled with promiseOrValue if it is a value, or
+	 *  - if promiseOrValue is a promise
+	 *    - fulfilled with promiseOrValue's value after it is fulfilled
+	 *    - rejected with promiseOrValue's reason after it is rejected
+	 * In contract to cast(x), this always creates a new Promise
+	 * @param  {*} value
+	 * @return {Promise}
+	 */
+	function resolve(value) {
+		return promise(function(resolve) {
+			resolve(value);
+		});
+	}
+
+	/**
+	 * Returns a rejected promise for the supplied promiseOrValue.  The returned
+	 * promise will be rejected with:
+	 * - promiseOrValue, if it is a value, or
+	 * - if promiseOrValue is a promise
+	 *   - promiseOrValue's value after it is fulfilled
+	 *   - promiseOrValue's reason after it is rejected
+	 * @param {*} promiseOrValue the rejected value of the returned {@link Promise}
+	 * @return {Promise} rejected {@link Promise}
+	 */
+	function reject(promiseOrValue) {
+		return when(promiseOrValue, function(e) {
+			return new RejectedPromise(e);
+		});
+	}
+
+	/**
+	 * Creates a {promise, resolver} pair, either or both of which
+	 * may be given out safely to consumers.
+	 * The resolver has resolve, reject, and progress.  The promise
+	 * has then plus extended promise API.
+	 *
+	 * @return {{
+	 * promise: Promise,
+	 * resolve: function:Promise,
+	 * reject: function:Promise,
+	 * notify: function:Promise
+	 * resolver: {
+	 *	resolve: function:Promise,
+	 *	reject: function:Promise,
+	 *	notify: function:Promise
+	 * }}}
+	 */
+	function defer() {
+		var deferred, pending, resolved;
+
+		// Optimize object shape
+		deferred = {
+			promise: undef, resolve: undef, reject: undef, notify: undef,
+			resolver: { resolve: undef, reject: undef, notify: undef }
+		};
+
+		deferred.promise = pending = promise(makeDeferred);
+
+		return deferred;
+
+		function makeDeferred(resolvePending, rejectPending, notifyPending) {
+			deferred.resolve = deferred.resolver.resolve = function(value) {
+				if(resolved) {
+					return resolve(value);
+				}
+				resolved = true;
+				resolvePending(value);
+				return pending;
+			};
+
+			deferred.reject  = deferred.resolver.reject  = function(reason) {
+				if(resolved) {
+					return resolve(new RejectedPromise(reason));
+				}
+				resolved = true;
+				rejectPending(reason);
+				return pending;
+			};
+
+			deferred.notify  = deferred.resolver.notify  = function(update) {
+				notifyPending(update);
+				return update;
+			};
+		}
+	}
+
+	/**
+	 * Run a queue of functions as quickly as possible, passing
+	 * value to each.
+	 */
+	function runHandlers(queue, value) {
+		for (var i = 0; i < queue.length; i++) {
+			queue[i](value);
+		}
+	}
+
+	/**
+	 * Coerces x to a trusted Promise
+	 * @param {*} x thing to coerce
+	 * @returns {*} Guaranteed to return a trusted Promise.  If x
+	 *   is trusted, returns x, otherwise, returns a new, trusted, already-resolved
+	 *   Promise whose resolution value is:
+	 *   * the resolution value of x if it's a foreign promise, or
+	 *   * x if it's a value
+	 */
+	function coerce(self, x) {
+		if (x === self) {
+			return new RejectedPromise(new TypeError());
+		}
+
+		if (x instanceof Promise) {
+			return x;
+		}
+
+		try {
+			var untrustedThen = x === Object(x) && x.then;
+
+			return typeof untrustedThen === 'function'
+				? assimilate(untrustedThen, x)
+				: new FulfilledPromise(x);
+		} catch(e) {
+			return new RejectedPromise(e);
+		}
+	}
+
+	/**
+	 * Safely assimilates a foreign thenable by wrapping it in a trusted promise
+	 * @param {function} untrustedThen x's then() method
+	 * @param {object|function} x thenable
+	 * @returns {Promise}
+	 */
+	function assimilate(untrustedThen, x) {
+		return promise(function (resolve, reject) {
+			fcall(untrustedThen, x, resolve, reject);
+		});
+	}
+
+	makePromisePrototype = Object.create ||
+		function(o) {
+			function PromisePrototype() {}
+			PromisePrototype.prototype = o;
+			return new PromisePrototype();
+		};
+
+	/**
+	 * Creates a fulfilled, local promise as a proxy for a value
+	 * NOTE: must never be exposed
+	 * @private
+	 * @param {*} value fulfillment value
+	 * @returns {Promise}
+	 */
+	function FulfilledPromise(value) {
+		this.value = value;
+	}
+
+	FulfilledPromise.prototype = makePromisePrototype(promisePrototype);
+
+	FulfilledPromise.prototype.inspect = function() {
+		return toFulfilledState(this.value);
+	};
+
+	FulfilledPromise.prototype._when = function(resolve, _, onFulfilled) {
+		try {
+			resolve(typeof onFulfilled === 'function' ? onFulfilled(this.value) : this.value);
+		} catch(e) {
+			resolve(new RejectedPromise(e));
+		}
+	};
+
+	/**
+	 * Creates a rejected, local promise as a proxy for a value
+	 * NOTE: must never be exposed
+	 * @private
+	 * @param {*} reason rejection reason
+	 * @returns {Promise}
+	 */
+	function RejectedPromise(reason) {
+		this.value = reason;
+	}
+
+	RejectedPromise.prototype = makePromisePrototype(promisePrototype);
+
+	RejectedPromise.prototype.inspect = function() {
+		return toRejectedState(this.value);
+	};
+
+	RejectedPromise.prototype._when = function(resolve, _, __, onRejected) {
+		try {
+			resolve(typeof onRejected === 'function' ? onRejected(this.value) : this);
+		} catch(e) {
+			resolve(new RejectedPromise(e));
+		}
+	};
+
+	/**
+	 * Create a progress promise with the supplied update.
+	 * @private
+	 * @param {*} value progress update value
+	 * @return {Promise} progress promise
+	 */
+	function ProgressingPromise(value) {
+		this.value = value;
+	}
+
+	ProgressingPromise.prototype = makePromisePrototype(promisePrototype);
+
+	ProgressingPromise.prototype._when = function(_, notify, f, r, u) {
+		try {
+			notify(typeof u === 'function' ? u(this.value) : this.value);
+		} catch(e) {
+			notify(e);
+		}
+	};
+
+	/**
+	 * Update a PromiseStatus monitor object with the outcome
+	 * of the supplied value promise.
+	 * @param {Promise} value
+	 * @param {PromiseStatus} status
+	 */
+	function updateStatus(value, status) {
+		value.then(statusFulfilled, statusRejected);
+
+		function statusFulfilled() { status.fulfilled(); }
+		function statusRejected(r) { status.rejected(r); }
+	}
+
+	/**
+	 * Determines if x is promise-like, i.e. a thenable object
+	 * NOTE: Will return true for *any thenable object*, and isn't truly
+	 * safe, since it may attempt to access the `then` property of x (i.e.
+	 *  clever/malicious getters may do weird things)
+	 * @param {*} x anything
+	 * @returns {boolean} true if x is promise-like
+	 */
+	function isPromiseLike(x) {
+		return x && typeof x.then === 'function';
+	}
+
+	/**
+	 * Initiates a competitive race, returning a promise that will resolve when
+	 * howMany of the supplied promisesOrValues have resolved, or will reject when
+	 * it becomes impossible for howMany to resolve, for example, when
+	 * (promisesOrValues.length - howMany) + 1 input promises reject.
+	 *
+	 * @param {Array} promisesOrValues array of anything, may contain a mix
+	 *      of promises and values
+	 * @param howMany {number} number of promisesOrValues to resolve
+	 * @param {function?} [onFulfilled] DEPRECATED, use returnedPromise.then()
+	 * @param {function?} [onRejected] DEPRECATED, use returnedPromise.then()
+	 * @param {function?} [onProgress] DEPRECATED, use returnedPromise.then()
+	 * @returns {Promise} promise that will resolve to an array of howMany values that
+	 *  resolved first, or will reject with an array of
+	 *  (promisesOrValues.length - howMany) + 1 rejection reasons.
+	 */
+	function some(promisesOrValues, howMany, onFulfilled, onRejected, onProgress) {
+
+		return when(promisesOrValues, function(promisesOrValues) {
+
+			return promise(resolveSome).then(onFulfilled, onRejected, onProgress);
+
+			function resolveSome(resolve, reject, notify) {
+				var toResolve, toReject, values, reasons, fulfillOne, rejectOne, len, i;
+
+				len = promisesOrValues.length >>> 0;
+
+				toResolve = Math.max(0, Math.min(howMany, len));
+				values = [];
+
+				toReject = (len - toResolve) + 1;
+				reasons = [];
+
+				// No items in the input, resolve immediately
+				if (!toResolve) {
+					resolve(values);
+
+				} else {
+					rejectOne = function(reason) {
+						reasons.push(reason);
+						if(!--toReject) {
+							fulfillOne = rejectOne = identity;
+							reject(reasons);
+						}
+					};
+
+					fulfillOne = function(val) {
+						// This orders the values based on promise resolution order
+						values.push(val);
+						if (!--toResolve) {
+							fulfillOne = rejectOne = identity;
+							resolve(values);
+						}
+					};
+
+					for(i = 0; i < len; ++i) {
+						if(i in promisesOrValues) {
+							when(promisesOrValues[i], fulfiller, rejecter, notify);
+						}
+					}
+				}
+
+				function rejecter(reason) {
+					rejectOne(reason);
+				}
+
+				function fulfiller(val) {
+					fulfillOne(val);
+				}
+			}
+		});
+	}
+
+	/**
+	 * Initiates a competitive race, returning a promise that will resolve when
+	 * any one of the supplied promisesOrValues has resolved or will reject when
+	 * *all* promisesOrValues have rejected.
+	 *
+	 * @param {Array|Promise} promisesOrValues array of anything, may contain a mix
+	 *      of {@link Promise}s and values
+	 * @param {function?} [onFulfilled] DEPRECATED, use returnedPromise.then()
+	 * @param {function?} [onRejected] DEPRECATED, use returnedPromise.then()
+	 * @param {function?} [onProgress] DEPRECATED, use returnedPromise.then()
+	 * @returns {Promise} promise that will resolve to the value that resolved first, or
+	 * will reject with an array of all rejected inputs.
+	 */
+	function any(promisesOrValues, onFulfilled, onRejected, onProgress) {
+
+		function unwrapSingleResult(val) {
+			return onFulfilled ? onFulfilled(val[0]) : val[0];
+		}
+
+		return some(promisesOrValues, 1, unwrapSingleResult, onRejected, onProgress);
+	}
+
+	/**
+	 * Return a promise that will resolve only once all the supplied promisesOrValues
+	 * have resolved. The resolution value of the returned promise will be an array
+	 * containing the resolution values of each of the promisesOrValues.
+	 * @memberOf when
+	 *
+	 * @param {Array|Promise} promisesOrValues array of anything, may contain a mix
+	 *      of {@link Promise}s and values
+	 * @param {function?} [onFulfilled] DEPRECATED, use returnedPromise.then()
+	 * @param {function?} [onRejected] DEPRECATED, use returnedPromise.then()
+	 * @param {function?} [onProgress] DEPRECATED, use returnedPromise.then()
+	 * @returns {Promise}
+	 */
+	function all(promisesOrValues, onFulfilled, onRejected, onProgress) {
+		return _map(promisesOrValues, identity).then(onFulfilled, onRejected, onProgress);
+	}
+
+	/**
+	 * Joins multiple promises into a single returned promise.
+	 * @return {Promise} a promise that will fulfill when *all* the input promises
+	 * have fulfilled, or will reject when *any one* of the input promises rejects.
+	 */
+	function join(/* ...promises */) {
+		return _map(arguments, identity);
+	}
+
+	/**
+	 * Settles all input promises such that they are guaranteed not to
+	 * be pending once the returned promise fulfills. The returned promise
+	 * will always fulfill, except in the case where `array` is a promise
+	 * that rejects.
+	 * @param {Array|Promise} array or promise for array of promises to settle
+	 * @returns {Promise} promise that always fulfills with an array of
+	 *  outcome snapshots for each input promise.
+	 */
+	function settle(array) {
+		return _map(array, toFulfilledState, toRejectedState);
+	}
+
+	/**
+	 * Promise-aware array map function, similar to `Array.prototype.map()`,
+	 * but input array may contain promises or values.
+	 * @param {Array|Promise} array array of anything, may contain promises and values
+	 * @param {function} mapFunc map function which may return a promise or value
+	 * @returns {Promise} promise that will fulfill with an array of mapped values
+	 *  or reject if any input promise rejects.
+	 */
+	function map(array, mapFunc) {
+		return _map(array, mapFunc);
+	}
+
+	/**
+	 * Internal map that allows a fallback to handle rejections
+	 * @param {Array|Promise} array array of anything, may contain promises and values
+	 * @param {function} mapFunc map function which may return a promise or value
+	 * @param {function?} fallback function to handle rejected promises
+	 * @returns {Promise} promise that will fulfill with an array of mapped values
+	 *  or reject if any input promise rejects.
+	 */
+	function _map(array, mapFunc, fallback) {
+		return when(array, function(array) {
+
+			return new Promise(resolveMap);
+
+			function resolveMap(resolve, reject, notify) {
+				var results, len, toResolve, i;
+
+				// Since we know the resulting length, we can preallocate the results
+				// array to avoid array expansions.
+				toResolve = len = array.length >>> 0;
+				results = [];
+
+				if(!toResolve) {
+					resolve(results);
+					return;
+				}
+
+				// Since mapFunc may be async, get all invocations of it into flight
+				for(i = 0; i < len; i++) {
+					if(i in array) {
+						resolveOne(array[i], i);
+					} else {
+						--toResolve;
+					}
+				}
+
+				function resolveOne(item, i) {
+					when(item, mapFunc, fallback).then(function(mapped) {
+						results[i] = mapped;
+
+						if(!--toResolve) {
+							resolve(results);
+						}
+					}, reject, notify);
+				}
+			}
+		});
+	}
+
+	/**
+	 * Traditional reduce function, similar to `Array.prototype.reduce()`, but
+	 * input may contain promises and/or values, and reduceFunc
+	 * may return either a value or a promise, *and* initialValue may
+	 * be a promise for the starting value.
+	 *
+	 * @param {Array|Promise} promise array or promise for an array of anything,
+	 *      may contain a mix of promises and values.
+	 * @param {function} reduceFunc reduce function reduce(currentValue, nextValue, index, total),
+	 *      where total is the total number of items being reduced, and will be the same
+	 *      in each call to reduceFunc.
+	 * @returns {Promise} that will resolve to the final reduced value
+	 */
+	function reduce(promise, reduceFunc /*, initialValue */) {
+		var args = fcall(slice, arguments, 1);
+
+		return when(promise, function(array) {
+			var total;
+
+			total = array.length;
+
+			// Wrap the supplied reduceFunc with one that handles promises and then
+			// delegates to the supplied.
+			args[0] = function (current, val, i) {
+				return when(current, function (c) {
+					return when(val, function (value) {
+						return reduceFunc(c, value, i, total);
+					});
+				});
+			};
+
+			return reduceArray.apply(array, args);
+		});
+	}
+
+	// Snapshot states
+
+	/**
+	 * Creates a fulfilled state snapshot
+	 * @private
+	 * @param {*} x any value
+	 * @returns {{state:'fulfilled',value:*}}
+	 */
+	function toFulfilledState(x) {
+		return { state: 'fulfilled', value: x };
+	}
+
+	/**
+	 * Creates a rejected state snapshot
+	 * @private
+	 * @param {*} x any reason
+	 * @returns {{state:'rejected',reason:*}}
+	 */
+	function toRejectedState(x) {
+		return { state: 'rejected', reason: x };
+	}
+
+	/**
+	 * Creates a pending state snapshot
+	 * @private
+	 * @returns {{state:'pending'}}
+	 */
+	function toPendingState() {
+		return { state: 'pending' };
+	}
+
+	//
+	// Internals, utilities, etc.
+	//
+
+	var promisePrototype, makePromisePrototype, reduceArray, slice, fcall, nextTick, handlerQueue,
+		funcProto, call, arrayProto, monitorApi,
+		capturedSetTimeout, cjsRequire, MutationObs, undef;
+
+	cjsRequire = require;
+
+	//
+	// Shared handler queue processing
+	//
+	// Credit to Twisol (https://github.com/Twisol) for suggesting
+	// this type of extensible queue + trampoline approach for
+	// next-tick conflation.
+
+	handlerQueue = [];
+
+	/**
+	 * Enqueue a task. If the queue is not currently scheduled to be
+	 * drained, schedule it.
+	 * @param {function} task
+	 */
+	function enqueue(task) {
+		if(handlerQueue.push(task) === 1) {
+			nextTick(drainQueue);
+		}
+	}
+
+	/**
+	 * Drain the handler queue entirely, being careful to allow the
+	 * queue to be extended while it is being processed, and to continue
+	 * processing until it is truly empty.
+	 */
+	function drainQueue() {
+		runHandlers(handlerQueue);
+		handlerQueue = [];
+	}
+
+	// Allow attaching the monitor to when() if env has no console
+	monitorApi = typeof console !== 'undefined' ? console : when;
+
+	// Sniff "best" async scheduling option
+	// Prefer process.nextTick or MutationObserver, then check for
+	// vertx and finally fall back to setTimeout
+	/*global process,document,setTimeout,MutationObserver,WebKitMutationObserver*/
+	if (typeof process === 'object' && process.nextTick) {
+		nextTick = process.nextTick;
+	} else if(MutationObs =
+		(typeof MutationObserver === 'function' && MutationObserver) ||
+			(typeof WebKitMutationObserver === 'function' && WebKitMutationObserver)) {
+		nextTick = (function(document, MutationObserver, drainQueue) {
+			var el = document.createElement('div');
+			new MutationObserver(drainQueue).observe(el, { attributes: true });
+
+			return function() {
+				el.setAttribute('x', 'x');
+			};
+		}(document, MutationObs, drainQueue));
+	} else {
+		try {
+			// vert.x 1.x || 2.x
+			nextTick = cjsRequire('vertx').runOnLoop || cjsRequire('vertx').runOnContext;
+		} catch(ignore) {
+			// capture setTimeout to avoid being caught by fake timers
+			// used in time based tests
+			capturedSetTimeout = setTimeout;
+			nextTick = function(t) { capturedSetTimeout(t, 0); };
+		}
+	}
+
+	//
+	// Capture/polyfill function and array utils
+	//
+
+	// Safe function calls
+	funcProto = Function.prototype;
+	call = funcProto.call;
+	fcall = funcProto.bind
+		? call.bind(call)
+		: function(f, context) {
+			return f.apply(context, slice.call(arguments, 2));
+		};
+
+	// Safe array ops
+	arrayProto = [];
+	slice = arrayProto.slice;
+
+	// ES5 reduce implementation if native not available
+	// See: http://es5.github.com/#x15.4.4.21 as there are many
+	// specifics and edge cases.  ES5 dictates that reduce.length === 1
+	// This implementation deviates from ES5 spec in the following ways:
+	// 1. It does not check if reduceFunc is a Callable
+	reduceArray = arrayProto.reduce ||
+		function(reduceFunc /*, initialValue */) {
+			/*jshint maxcomplexity: 7*/
+			var arr, args, reduced, len, i;
+
+			i = 0;
+			arr = Object(this);
+			len = arr.length >>> 0;
+			args = arguments;
+
+			// If no initialValue, use first item of array (we know length !== 0 here)
+			// and adjust i to start at second item
+			if(args.length <= 1) {
+				// Skip to the first real element in the array
+				for(;;) {
+					if(i in arr) {
+						reduced = arr[i++];
+						break;
+					}
+
+					// If we reached the end of the array without finding any real
+					// elements, it's a TypeError
+					if(++i >= len) {
+						throw new TypeError();
+					}
+				}
+			} else {
+				// If initialValue provided, use it
+				reduced = args[1];
+			}
+
+			// Do the actual reduce
+			for(;i < len; ++i) {
+				if(i in arr) {
+					reduced = reduceFunc(reduced, arr[i], i, arr);
+				}
+			}
+
+			return reduced;
+		};
+
+	function identity(x) {
+		return x;
+	}
+
+	function crash(fatalError) {
+		if(typeof monitorApi.reportUnhandled === 'function') {
+			monitorApi.reportUnhandled();
+		} else {
+			enqueue(function() {
+				throw fatalError;
+			});
+		}
+
+		throw fatalError;
+	}
+
+	return when;
+});
+})(typeof define === 'function' && define.amd ? define : function (factory) { module.exports = factory(require); });
+
+},{"__browserify_process":12}],11:[function(require,module,exports){
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -2070,5 +3128,60 @@ function isObject(arg) {
 function isUndefined(arg) {
   return arg === void 0;
 }
+
+},{}],12:[function(require,module,exports){
+// shim for using process in browser
+
+var process = module.exports = {};
+
+process.nextTick = (function () {
+    var canSetImmediate = typeof window !== 'undefined'
+    && window.setImmediate;
+    var canPost = typeof window !== 'undefined'
+    && window.postMessage && window.addEventListener
+    ;
+
+    if (canSetImmediate) {
+        return function (f) { return window.setImmediate(f) };
+    }
+
+    if (canPost) {
+        var queue = [];
+        window.addEventListener('message', function (ev) {
+            var source = ev.source;
+            if ((source === window || source === null) && ev.data === 'process-tick') {
+                ev.stopPropagation();
+                if (queue.length > 0) {
+                    var fn = queue.shift();
+                    fn();
+                }
+            }
+        }, true);
+
+        return function nextTick(fn) {
+            queue.push(fn);
+            window.postMessage('process-tick', '*');
+        };
+    }
+
+    return function nextTick(fn) {
+        setTimeout(fn, 0);
+    };
+})();
+
+process.title = 'browser';
+process.browser = true;
+process.env = {};
+process.argv = [];
+
+process.binding = function (name) {
+    throw new Error('process.binding is not supported');
+}
+
+// TODO(shtylman)
+process.cwd = function () { return '/' };
+process.chdir = function (dir) {
+    throw new Error('process.chdir is not supported');
+};
 
 },{}]},{},[5])
