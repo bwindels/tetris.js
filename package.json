@@ -1,0 +1,29 @@
+{
+  "name": "tetris.js",
+  "version": "0.1.0",
+  "description": "Tetris, implemented with the DOM and javascript",
+  "main": "index.js",
+  "directories": {
+    "test": "test"
+  },
+  "scripts": {
+    "test": "make test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/bwindels/tetris.js.git"
+  },
+  "keywords": [
+    "tetris"
+  ],
+  "author": "Bruno Windels",
+  "license": "BSD-2-Clause",
+  "bugs": {
+    "url": "https://github.com/bwindels/tetris.js/issues"
+  },
+  "homepage": "https://github.com/bwindels/tetris.js",
+  "dependencies": {
+    "when": "~2.7.1",
+    "underscore": "~1.5.2"
+  }
+}
